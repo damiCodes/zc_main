@@ -1,5 +1,6 @@
-import React, { useState, useEffect, useRef } from "react"
+import React, { useState, useEffect, useRef, useContext } from "react"
 import { authAxios } from "../../Utils/Api"
+// import { ProfileContext } from "../../../../../../topbar/src/context/ProfileModal"
 import toast from "react-hot-toast"
 import Picker from "emoji-picker-react"
 import Loader from "react-loader-spinner"
@@ -13,17 +14,20 @@ import CommentIcon from "../../../resources/assests/svg/CommentIcon"
 import DelIcon from "../../../resources/assests/svg/DelIcon"
 import SearchIcon from "../../../resources/assests/svg/SearchIcon"
 import DefaultEmojiIcon from "../../../resources/assests/svg/DefaultEmojiIcon"
+// import ForwardIcon from "../../../resources/assests/ForwardIcon.svg"
 import classes from "../styles/EmojiTab.module.css"
 
 const Emoji = () => {
+  // const { orgId, user } = useContext(ProfileContext)
   const imageRef = useRef(null)
   const avatarRef = useRef(null)
+  const _avatarRef = useRef(null)
   const [display, setDisplay] = useState(false)
   const [text, setText] = useState("")
   const [image, setImage] = useState([])
   const [btnName, setBtnName] = useState("")
   const [emojiImage, setEmojiImage] = useState(null)
-  const [state, setState] = useState(null)
+  const [state, setState] = useState({ name: "" })
   const [formData, setFormData] = useState(new FormData())
   const [emojiOne, setEmojiObjectOne] = useState("\u2705")
   const [emojiTwo, setEmojiObjectTwo] = useState("\u{1F60A}")
@@ -34,6 +38,7 @@ const Emoji = () => {
   const [customEmoji, setCustomEmoji] = useState(true)
   const [chooseEmoji, setChooseEmoji] = useState(false)
   const [duplicateName, setDuplicateName] = useState(false)
+  const [fileName, setFileName] = useState("")
   const ref = useRef(null)
   const [loader, setLoader] = useState({
     uploadLoader: false,
@@ -57,11 +62,6 @@ const Emoji = () => {
 
   const addCustomEmoji = () => {
     setBtnName("Add Custom Emoji")
-    setDisplay(true)
-  }
-
-  const deleteCustomEmoji = () => {
-    setBtnName("Delete Custom Emoji")
     setDisplay(true)
   }
 
@@ -233,7 +233,7 @@ const Emoji = () => {
       <div className={classes.footer} style={{ marginTop: "30px" }}>
         <button onClick={closeModal}>Cancel</button>
         <button
-          onClick={handleDel}
+          // onClick={handleDel}
           style={{ backgroundColor: "#e01e5a", minWidth: "115px" }}
         >
           Delete Emoji
@@ -253,35 +253,58 @@ const Emoji = () => {
   //   }
   // }, [isOpen])
 
+  const setEmojiName = e => {
+    setState({ name: e.target.value })
+  }
+
   const handleImageChange = e => {
     if (imageRef.current.files[0]) {
       let fileReader = new FileReader()
 
       fileReader.onload = function (e) {
         avatarRef.current.src = e.target.result
+        _avatarRef.current.src = e.target.result
+        setEmojiImage(e.target.result)
       }
 
       fileReader.readAsDataURL(imageRef.current.files[0])
       const imageReader = e.target.files[0]
 
-      // const formData = new FormData()
+      setFileName(imageRef.current.files[0].name)
+
       setFormData(formData.append("image", imageReader))
     }
   }
 
+  useEffect(() => {
+    //check for returned data from upload
+  }, [state.name])
+
   const handleSave = e => {
-    //dummy endpoint
     setDisplay(false)
-    let orgId = ""
+
+    //get the user data from session storage
+    const getUser = () => {
+      const result = JSON.parse(sessionStorage.getItem("user") || null)
+      return result
+    }
+    //get the currentWorkspace from local storage
+    const getCurrentWorkspace = () => {
+      const currentWorkspace = localStorage.getItem("currentWorkspace") || null
+      return currentWorkspace
+    }
+
+    //upload the image to the database,make emojiImage a src gotten from the post request
     authAxios
-      .patch(`/organizations/${orgId}/settings`, {
-        formData,
-        state
+      .patch(`v1/organizations/${getCurrentWorkspace()}/customemoji`, {
+        name: state.name,
+        imageUrl: emojiImage,
+        user: getUser()
       })
       .then(res => {
-        const newUploadedImage = res.data.data
-        setEmojiImage(newUploadedImage)
-        toast.success("Custom Emoji Updated Successfully", {
+        const uploadedImageData = res.data.data
+        // console.log(res, uploadedImageData)
+        toast.success("User Image Updated Successfully", {
           position: "top-center"
         })
       })
@@ -292,8 +315,6 @@ const Emoji = () => {
         })
       })
   }
-
-  const handleDel = () => {}
 
   return (
     <div className={classes.container}>
@@ -403,9 +424,7 @@ const Emoji = () => {
               <button>
                 <CommentIcon />
               </button>
-              <button>
-                <img src={ForwardIcon} alt="" />
-              </button>
+              <button>{/* <img src={ForwardIcon} alt="" /> */}</button>
               <button>
                 <BookmarkIcon />
               </button>
@@ -455,7 +474,6 @@ const Emoji = () => {
         <div className={classes.search}>
           <input
             type="text"
-            placeholder="Search"
             onChange={e => setState({ name: e.target.value })}
           />
           <div className={classes.searchIcon}>
@@ -494,7 +512,10 @@ const Emoji = () => {
               />
               <span>Damilola Akinlade</span>
             </div>
-            <div className={classes.emojiDelete} onClick={deleteCustomEmoji}>
+            <div
+              className={classes.emojiDelete}
+              // onClick={deleteCustomEmoji}
+            >
               <DelIcon />
             </div>
           </div>
@@ -509,9 +530,127 @@ const Emoji = () => {
               &times;
             </div>
             <div className={classes.container}>
-              {btnName === "Add Custom Emoji" && _addCustomEmoji}
-              {btnName === "Add Alias" && _addAlias}
-              {btnName === "Delete Custom Emoji" && _deleteCustomEmoji}
+              {btnName === "Add Custom Emoji" ? (
+                <>
+                  <div className={classes.title}>Add custom emoji</div>
+                  <div className={classes.text}>
+                    Your custom emoji will be available to everyone in your
+                    workspace. You’ll find it in the custom tab of the emoji
+                    picker. (Hint: it’s the one with the Zuri-chat icon!)
+                  </div>
+                  <div className={classes.list}>
+                    <ol>
+                      <li>
+                        <div className={classes.title}>
+                          1.&nbsp; Upload an image
+                        </div>
+                        <div className={classes.text}>
+                          Square images under 128KB and with transparent
+                          backgrounds work best. If your image is too large,
+                          we’ll try to resize it for you.
+                        </div>
+                        <div className={classes.imageUpload}>
+                          <div className={classes.imageContainer}>
+                            <div>
+                              {" "}
+                              <img ref={_avatarRef} src="" alt="sticker pic" />
+                            </div>
+                            <div>
+                              <img ref={avatarRef} src="" alt="sticker pic" />{" "}
+                              {/*add default backgoground before image uploads*/}
+                            </div>
+                          </div>
+                          <div>
+                            {fileName.length > 0 ? (
+                              fileName.length > 17 ? (
+                                `${fileName.substring(0, 17)}...`
+                              ) : (
+                                fileName
+                              )
+                            ) : (
+                              <p>Select an image</p>
+                            )}
+                            <input
+                              ref={imageRef}
+                              onChange={handleImageChange}
+                              type="file"
+                              hidden
+                              id="image"
+                            />
+                            <label htmlFor="image">Upload an Image</label>
+                            {/* <button>Upload an Image</button> */}
+                          </div>
+                        </div>
+                      </li>
+                      <hr />
+                      <li>
+                        <div className={classes.title}>
+                          2.&nbsp; Give it a name
+                        </div>
+                        <div className={classes.text}>
+                          This is also what you’ll type to add this emoji to
+                          your messages.
+                        </div>
+                        <div className={classes.input}>
+                          <input type="text" onChange={e => setEmojiName(e)} />
+                        </div>
+                      </li>
+                    </ol>
+                  </div>
+                  <div className={classes.footer}>
+                    <button onClick={closeModal}>Cancel</button>
+                    <button onClick={handleSave}>Save</button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className={classes.title}>
+                    Add alias for an existing emoji
+                  </div>
+                  <hr />
+                  <div className={classes.overflow}>
+                    <div className={classes.text}>
+                      Emoji aliases will be available to everyone in your
+                      workspace. You’ll find them alongside the original emoji
+                      in the emoji picker.
+                    </div>
+                    <div className={classes.list}>
+                      <ol>
+                        <li>
+                          <div className={classes.title}>
+                            1.&nbsp; Choose an existing emoji
+                          </div>
+                          <div className={classes.chooseEmoji}>
+                            <div className={classes.emojiPreview}></div>
+                            <button>Choose Emoji</button>
+                          </div>
+                        </li>
+                        <hr />
+                        <li>
+                          <div className={classes.title}>
+                            2.&nbsp; Enter an alias
+                          </div>
+                          <div className={classes.text}>
+                            This is also what you’ll type to add this emoji to
+                            your messages.
+                          </div>
+                          <div className={classes.input}>
+                            <input
+                              type="text"
+                              onChange={e => setState({ name: e.target.value })}
+                            />
+                          </div>
+                        </li>
+                      </ol>
+                    </div>
+                  </div>
+                  <hr />
+                  <div className={classes.footer}>
+                    <button onClick={closeModal}>Cancel</button>
+                    <button onClick={handleSave}>Save</button>
+                  </div>
+                </>
+              )}
             </div>
           </div>
         </>
